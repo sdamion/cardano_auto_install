@@ -2,6 +2,25 @@
 
 This repository contains `auto_install_cardano.sh`, an Ubuntu installer for a Cardano node.
 
+## Install on Ubuntu
+
+Copy and paste this complete block into a terminal while logged in as the
+normal user that will run the Cardano node:
+
+```bash
+sudo apt update
+sudo apt install -y wget
+
+wget -O auto_install_cardano.sh \
+  https://raw.githubusercontent.com/sdamion/cardano_auto_install/main/auto_install_cardano.sh
+
+chmod +x auto_install_cardano.sh
+./auto_install_cardano.sh
+```
+
+Do not start the installer with `sudo`. The script requests `sudo` itself only
+for operations that need administrative access.
+
 ## Validation
 
 The complete supplied script has been assembled and passes `bash -n` syntax validation.
@@ -25,4 +44,7 @@ toolchain is installed.
 
 ## Safety
 
-Review the configuration at the top of the script before use. The installer upgrades system packages, builds and installs libraries, configures systemd and UFW, and must be run as a normal user with sudo access.
+Review the displayed configuration before confirming installation. The
+installer can optionally upgrade system packages, builds and installs
+libraries, configures systemd, and adds a Cardano port rule to UFW without
+enabling the firewall. It must be run as a normal user with sudo access.
