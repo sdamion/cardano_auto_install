@@ -15,6 +15,14 @@ have no defaults and are required. Addresses must contain four octets in the
 public bootstrap peers; block producers connect only to the configured relay
 peers.
 
+The installer checks the latest non-prerelease Cardano Node version through
+the official IntersectMBO GitHub Releases API. It then reads that release
+tag's `nix/haskell.nix` and CI workflow to select Cardano's supported GHC
+version and Cabal release line. The latest stable patch in that Cabal line is
+resolved through the official `haskell/cabal` GitHub Releases API. The exact
+detected versions and source URLs are shown for confirmation before the
+toolchain is installed.
+
 ## Safety
 
 Review the configuration at the top of the script before use. The installer upgrades system packages, builds and installs libraries, configures systemd and UFW, and must be run as a normal user with sudo access.

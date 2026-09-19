@@ -44,9 +44,9 @@ fi
 # USER CONFIGURATION
 # ==========================================================
 
-NODE_VERSION="11.1.2"
-GHC_VERSION="9.6.7"
-CABAL_VERSION="3.12.1.0"
+CARDANO_RELEASE_API_URL="https://api.github.com/repos/IntersectMBO/cardano-node/releases/latest"
+CARDANO_RAW_BASE_URL="https://raw.githubusercontent.com/IntersectMBO/cardano-node"
+CABAL_RELEASES_API_URL="https://api.github.com/repos/haskell/cabal/releases?per_page=100"
 
 BLST_VERSION="v0.3.14"
 LIBSODIUM_COMMIT="dbb48cc"
@@ -272,9 +272,7 @@ echo "User:                  ${CURRENT_USER}"
 echo "Group:                 ${CURRENT_GROUP}"
 echo "Home:                  ${USER_HOME}"
 echo
-echo "Node version:          ${NODE_VERSION}"
-echo "GHC version:           ${GHC_VERSION}"
-echo "Cabal version:         ${CABAL_VERSION}"
+echo "Software versions:     detected from the latest official Cardano release"
 echo
 echo "Network:               ${NETWORK}"
 echo "Node port:             ${NODE_PORT}"
@@ -384,6 +382,119 @@ sudo apt install -y \
 
 
 # ==========================================================
+# DETECT OFFICIAL CARDANO TOOLCHAIN VERSIONS
+# ==========================================================
+
+echo
+echo "=== Check latest official Cardano toolchain versions ==="
+
+if ! CARDANO_RELEASE_JSON="$(curl -fsSL "${CARDANO_RELEASE_API_URL}")"; then
+    echo "ERROR: Could not check the latest Cardano Node release."
+    echo "Source: ${CARDANO_RELEASE_API_URL}"
+    exit 1
+fi
+
+NODE_VERSION="$(jq -r '.tag_name // empty' <<< "${CARDANO_RELEASE_JSON}")"
+NODE_RELEASE_URL="$(jq -r '.html_url // empty' <<< "${CARDANO_RELEASE_JSON}")"
+
+if [[ -z "${NODE_VERSION}" || -z "${NODE_RELEASE_URL}" ]]; then
+    echo "ERROR: The latest Cardano Node release response has no version or release URL."
+    echo "Source: ${CARDANO_RELEASE_API_URL}"
+    exit 1
+fi
+
+CARDANO_GHC_CONFIG_URL="${CARDANO_RAW_BASE_URL}/${NODE_VERSION}/nix/haskell.nix"
+CARDANO_CI_CONFIG_URL="${CARDANO_RAW_BASE_URL}/${NODE_VERSION}/.github/workflows/haskell.yml"
+
+if ! CARDANO_GHC_CONFIG="$(curl -fsSL "${CARDANO_GHC_CONFIG_URL}")"; then
+    echo "ERROR: Could not read the GHC configuration for Cardano Node ${NODE_VERSION}."
+    echo "Source: ${CARDANO_GHC_CONFIG_URL}"
+    exit 1
+fi
+
+GHC_VERSION="$(
+    sed -n \
+        's/.*else "ghc\([0-9]\)\([0-9][0-9]*\)\([0-9]\)".*/\1.\2.\3/p' \
+        <<< "${CARDANO_GHC_CONFIG}" \
+        | head -n 1
+)"
+
+if [[ ! "${GHC_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "ERROR: Could not determine the supported GHC version."
+    echo "Source: ${CARDANO_GHC_CONFIG_URL}"
+    exit 1
+fi
+
+if ! CARDANO_CI_CONFIG="$(curl -fsSL "${CARDANO_CI_CONFIG_URL}")"; then
+    echo "ERROR: Could not read the Cabal configuration for Cardano Node ${NODE_VERSION}."
+    echo "Source: ${CARDANO_CI_CONFIG_URL}"
+    exit 1
+fi
+
+CABAL_VERSION_SERIES="$(
+    sed -n \
+        's/.*cabal-version[^\"]*"\([0-9][0-9.]*\)".*/\1/p' \
+        <<< "${CARDANO_CI_CONFIG}" \
+        | head -n 1
+)"
+
+if [[ ! "${CABAL_VERSION_SERIES}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+    echo "ERROR: Could not determine the supported Cabal release line."
+    echo "Source: ${CARDANO_CI_CONFIG_URL}"
+    exit 1
+fi
+
+if ! CABAL_RELEASES_JSON="$(curl -fsSL "${CABAL_RELEASES_API_URL}")"; then
+    echo "ERROR: Could not check official Cabal releases."
+    echo "Source: ${CABAL_RELEASES_API_URL}"
+    exit 1
+fi
+
+CABAL_RELEASE="$(
+    jq -c \
+        --arg prefix "cabal-install-v${CABAL_VERSION_SERIES}." \
+        '[.[] | select(.draft == false and .prerelease == false and (.tag_name | startswith($prefix)))] | first // empty' \
+        <<< "${CABAL_RELEASES_JSON}"
+)"
+
+CABAL_VERSION="$(jq -r '.tag_name // empty' <<< "${CABAL_RELEASE}")"
+CABAL_VERSION="${CABAL_VERSION#cabal-install-v}"
+CABAL_RELEASE_URL="$(jq -r '.html_url // empty' <<< "${CABAL_RELEASE}")"
+
+if [[ ! "${CABAL_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ || -z "${CABAL_RELEASE_URL}" ]]; then
+    echo "ERROR: Could not determine the latest stable Cabal ${CABAL_VERSION_SERIES}.x release."
+    echo "Source: ${CABAL_RELEASES_API_URL}"
+    exit 1
+fi
+
+echo
+echo "=========================================================="
+echo " OFFICIAL VERSIONS DETECTED"
+echo "=========================================================="
+echo
+echo "Cardano Node: ${NODE_VERSION}"
+echo "Release:      ${NODE_RELEASE_URL}"
+echo
+echo "GHC:          ${GHC_VERSION}"
+echo "Checked at:   ${CARDANO_GHC_CONFIG_URL}"
+echo
+echo "Cabal:        ${CABAL_VERSION}"
+echo "Cardano CI:   ${CARDANO_CI_CONFIG_URL}"
+echo "Release:      ${CABAL_RELEASE_URL}"
+echo
+
+INSTALL_DETECTED_VERSIONS=""
+read -r -p "Install these detected versions? [Y/n]: " INSTALL_DETECTED_VERSIONS || true
+
+case "${INSTALL_DETECTED_VERSIONS}" in
+    [nN]|[nN][oO])
+        echo "Installation cancelled."
+        exit 0
+        ;;
+esac
+
+
+# ==========================================================
 # CHRONY
 # ==========================================================
 
@@ -457,6 +568,10 @@ ghcup install cabal "${CABAL_VERSION}" || true
 ghcup set cabal "${CABAL_VERSION}"
 
 cabal update
+
+CABAL_VERSION="$(cabal --numeric-version)"
+
+echo "Installed Cabal version: ${CABAL_VERSION}"
 
 
 # ==========================================================
