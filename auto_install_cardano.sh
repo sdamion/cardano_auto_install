@@ -577,7 +577,7 @@ echo "Installed Cabal version: ${CABAL_VERSION}"
 # CURRENT ENVIRONMENT
 # ==========================================================
 
-export PATH="${LOCAL_BIN}:${CABAL_HOME}/bin:${GHCUP_HOME}/bin:/usr/local/bin:/usr/bin:/bin:${PATH}"
+export PATH="${LOCAL_BIN}:${CABAL_HOME}/bin:${GHCUP_HOME}/bin:/usr/bin:/bin:${PATH}"
 
 export LIBRARY_PATH="/usr/local/lib:${LIBRARY_PATH:-}"
 
@@ -615,7 +615,7 @@ fi
 cat >> "${USER_HOME}/.bashrc" <<BASHRC
 
 ${BASHRC_START}
-export PATH="${LOCAL_BIN}:${CABAL_HOME}/bin:${GHCUP_HOME}/bin:/usr/local/bin:/usr/bin:/bin:\$PATH"
+export PATH="${LOCAL_BIN}:${CABAL_HOME}/bin:${GHCUP_HOME}/bin:/usr/bin:/bin:\$PATH"
 export LIBRARY_PATH="/usr/local/lib:\${LIBRARY_PATH:-}"
 export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:\${PKG_CONFIG_PATH:-}"
 export C_INCLUDE_PATH="/usr/local/include/blst:\${C_INCLUDE_PATH:-}"
@@ -965,7 +965,7 @@ set -euo pipefail
 
 export HOME="${USER_HOME}"
 
-export PATH="${LOCAL_BIN}:${CABAL_HOME}/bin:${GHCUP_HOME}/bin:/usr/local/bin:/usr/bin:/bin:\$PATH"
+export PATH="${LOCAL_BIN}:${CABAL_HOME}/bin:${GHCUP_HOME}/bin:/usr/bin:/bin:\$PATH"
 
 export NODE_HOME="${NODE_HOME}"
 
@@ -1002,7 +1002,7 @@ Group=${CURRENT_GROUP}
 Type=simple
 
 Environment="HOME=${USER_HOME}"
-Environment="PATH=${LOCAL_BIN}:${CABAL_HOME}/bin:${GHCUP_HOME}/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PATH=${LOCAL_BIN}:${CABAL_HOME}/bin:${GHCUP_HOME}/bin:/usr/bin:/bin"
 Environment="CARDANO_NODE_SOCKET_PATH=${NODE_SOCKET}"
 Environment="NODE_HOME=${NODE_HOME}"
 
