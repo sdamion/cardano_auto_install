@@ -174,24 +174,6 @@ declare -a LOCAL_PEER_PORTS=()
 declare -a LOCAL_PEER_NAMES=()
 
 for ((PEER_INDEX = 1; PEER_INDEX <= LOCAL_PEER_COUNT; PEER_INDEX++)); do
-    if [[ "${NODE_ROLE}" == "block-producer" ]]; then
-        if [[ "${PEER_INDEX}" == "1" ]]; then
-            DEFAULT_PEER_PORT="3001"
-            DEFAULT_PEER_NAME="relay1"
-        else
-            DEFAULT_PEER_PORT="3002"
-            DEFAULT_PEER_NAME="relay2"
-        fi
-    else
-        if [[ "${PEER_INDEX}" == "1" ]]; then
-            DEFAULT_PEER_PORT="3002"
-            DEFAULT_PEER_NAME="crlnode02"
-        else
-            DEFAULT_PEER_PORT="3001"
-            DEFAULT_PEER_NAME="crlnode01"
-        fi
-    fi
-
     echo
     echo "Local peer ${PEER_INDEX}"
 
@@ -209,8 +191,8 @@ for ((PEER_INDEX = 1; PEER_INDEX <= LOCAL_PEER_COUNT; PEER_INDEX++)); do
 
     while true; do
         PEER_PORT_INPUT=""
-        read -r -p "  Port [${DEFAULT_PEER_PORT}]: " PEER_PORT_INPUT || true
-        PEER_PORT="${PEER_PORT_INPUT:-${DEFAULT_PEER_PORT}}"
+        read -r -p "  Port (required): " PEER_PORT_INPUT || true
+        PEER_PORT="${PEER_PORT_INPUT}"
 
         if [[ "${PEER_PORT}" =~ ^[0-9]+$ ]] && ((PEER_PORT >= 1 && PEER_PORT <= 65535)); then
             LOCAL_PEER_PORTS+=("${PEER_PORT}")
@@ -220,9 +202,17 @@ for ((PEER_INDEX = 1; PEER_INDEX <= LOCAL_PEER_COUNT; PEER_INDEX++)); do
         echo "  Enter a port between 1 and 65535."
     done
 
-    PEER_NAME_INPUT=""
-    read -r -p "  Name [${DEFAULT_PEER_NAME}]: " PEER_NAME_INPUT || true
-    LOCAL_PEER_NAMES+=("${PEER_NAME_INPUT:-${DEFAULT_PEER_NAME}}")
+    while true; do
+        PEER_NAME_INPUT=""
+        read -r -p "  Name (required): " PEER_NAME_INPUT || true
+
+        if [[ -n "${PEER_NAME_INPUT}" ]]; then
+            LOCAL_PEER_NAMES+=("${PEER_NAME_INPUT}")
+            break
+        fi
+
+        echo "  Enter a non-empty peer name."
+    done
 done
 
 
