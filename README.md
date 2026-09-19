@@ -6,10 +6,12 @@ This repository contains `auto_install_cardano.sh`, an Ubuntu installer for a Ca
 
 The complete supplied script has been assembled and passes `bash -n` syntax validation.
 
-During installation, the script prompts for the node role (`relay` or
-`block-producer`), whether to configure one or two local peers, and each
-peer's address, port, and name. Relay nodes retain public bootstrap peers;
-block producers connect only to the configured relay peers.
+During installation, the script prompts for the Cardano network (`mainnet`,
+`preprod`, or `preview`), the node role (`relay` or `block-producer`), whether
+to configure one or two local peers, and each peer's address, port, and name.
+Peer IPv4 addresses have no defaults and must contain four octets in the
+0–255 range. Relay nodes retain public bootstrap peers; block producers
+connect only to the configured relay peers.
 
 ## Safety
 

@@ -51,7 +51,7 @@ CABAL_VERSION="3.12.1.0"
 BLST_VERSION="v0.3.14"
 LIBSODIUM_COMMIT="dbb48cc"
 
-NETWORK="mainnet"
+DEFAULT_NETWORK="mainnet"
 
 NODE_PORT="3002"
 NODE_BIND_ADDRESS="0.0.0.0"
@@ -102,6 +102,42 @@ echo "=========================================================="
 echo
 
 while true; do
+    NETWORK_INPUT=""
+    read -r -p "Cardano network: mainnet, preprod, or preview [${DEFAULT_NETWORK}]: " NETWORK_INPUT || true
+    NETWORK="${NETWORK_INPUT:-${DEFAULT_NETWORK}}"
+    NETWORK="${NETWORK,,}"
+
+    case "${NETWORK}" in
+        mainnet|preprod|preview)
+            break
+            ;;
+        *)
+            echo "Enter mainnet, preprod, or preview."
+            ;;
+    esac
+done
+
+is_valid_ipv4() {
+    local ip_address="$1"
+    local octet
+    local -a octets
+
+    if [[ ! "${ip_address}" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+        return 1
+    fi
+
+    IFS='.' read -r -a octets <<< "${ip_address}"
+
+    for octet in "${octets[@]}"; do
+        if ((10#${octet} < 0 || 10#${octet} > 255)); then
+            return 1
+        fi
+    done
+
+    return 0
+}
+
+while true; do
     NODE_ROLE_INPUT=""
     read -r -p "Node role: relay or block-producer [${DEFAULT_NODE_ROLE}]: " NODE_ROLE_INPUT || true
     NODE_ROLE="${NODE_ROLE_INPUT:-${DEFAULT_NODE_ROLE}}"
@@ -140,21 +176,17 @@ declare -a LOCAL_PEER_NAMES=()
 for ((PEER_INDEX = 1; PEER_INDEX <= LOCAL_PEER_COUNT; PEER_INDEX++)); do
     if [[ "${NODE_ROLE}" == "block-producer" ]]; then
         if [[ "${PEER_INDEX}" == "1" ]]; then
-            DEFAULT_PEER_ADDRESS="192.168.50.6"
             DEFAULT_PEER_PORT="3001"
             DEFAULT_PEER_NAME="relay1"
         else
-            DEFAULT_PEER_ADDRESS="192.168.50.7"
             DEFAULT_PEER_PORT="3002"
             DEFAULT_PEER_NAME="relay2"
         fi
     else
         if [[ "${PEER_INDEX}" == "1" ]]; then
-            DEFAULT_PEER_ADDRESS="192.168.50.7"
             DEFAULT_PEER_PORT="3002"
             DEFAULT_PEER_NAME="crlnode02"
         else
-            DEFAULT_PEER_ADDRESS="192.168.50.6"
             DEFAULT_PEER_PORT="3001"
             DEFAULT_PEER_NAME="crlnode01"
         fi
@@ -163,9 +195,17 @@ for ((PEER_INDEX = 1; PEER_INDEX <= LOCAL_PEER_COUNT; PEER_INDEX++)); do
     echo
     echo "Local peer ${PEER_INDEX}"
 
-    PEER_ADDRESS_INPUT=""
-    read -r -p "  Address [${DEFAULT_PEER_ADDRESS}]: " PEER_ADDRESS_INPUT || true
-    LOCAL_PEER_ADDRESSES+=("${PEER_ADDRESS_INPUT:-${DEFAULT_PEER_ADDRESS}}")
+    while true; do
+        PEER_ADDRESS_INPUT=""
+        read -r -p "  IPv4 address (required): " PEER_ADDRESS_INPUT || true
+
+        if is_valid_ipv4 "${PEER_ADDRESS_INPUT}"; then
+            LOCAL_PEER_ADDRESSES+=("${PEER_ADDRESS_INPUT}")
+            break
+        fi
+
+        echo "  Enter a valid IPv4 address with four numbers from 0 to 255."
+    done
 
     while true; do
         PEER_PORT_INPUT=""
