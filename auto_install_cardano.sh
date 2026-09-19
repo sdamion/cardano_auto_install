@@ -172,7 +172,33 @@ echo
 echo "=== Update Ubuntu ==="
 
 sudo apt update
-sudo apt upgrade -y
+
+RUN_SYSTEM_UPGRADE=""
+read -r -p "Run a full system upgrade before installing Cardano? [y/N]: " RUN_SYSTEM_UPGRADE || true
+
+case "${RUN_SYSTEM_UPGRADE}" in
+    [yY]|[yY][eE][sS])
+        sudo apt upgrade -y
+
+        if [[ -f /var/run/reboot-required ]]; then
+            echo
+            echo "=========================================================="
+            echo " REBOOT REQUIRED"
+            echo "=========================================================="
+            echo
+            echo "The system upgrade requires a reboot."
+            echo "Reboot this machine, then rerun this installer:"
+            echo
+            echo "  sudo reboot"
+            echo "  ./auto_install_cardano.sh"
+            echo
+            exit 0
+        fi
+        ;;
+    *)
+        echo "Skipping full system upgrade."
+        ;;
+esac
 
 
 # ==========================================================
