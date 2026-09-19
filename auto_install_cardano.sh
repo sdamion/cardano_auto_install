@@ -792,7 +792,7 @@ sudo chown -R \
     "${NODE_HOME}" \
     "${GIT_HOME}" \
     "${LOCAL_BIN}" \
-    "${BLST_DIR}"
+    "${BLST_DIR}" \
     "${LIBSODIUM_DIR}"
 
 
