@@ -53,7 +53,6 @@ LIBSODIUM_COMMIT="dbb48cc"
 
 DEFAULT_NETWORK="mainnet"
 
-NODE_PORT="3002"
 NODE_BIND_ADDRESS="0.0.0.0"
 
 # ----------------------------------------------------------
@@ -115,6 +114,20 @@ while true; do
             echo "Enter mainnet, preprod, or preview."
             ;;
     esac
+done
+
+while true; do
+    NODE_PORT_INPUT=""
+    read -r -p "Cardano node listening port (required): " NODE_PORT_INPUT || true
+
+    if [[ "${NODE_PORT_INPUT}" =~ ^[0-9]+$ ]] \
+        && ((${#NODE_PORT_INPUT} <= 5)) \
+        && ((10#${NODE_PORT_INPUT} >= 1 && 10#${NODE_PORT_INPUT} <= 65535)); then
+        NODE_PORT="$((10#${NODE_PORT_INPUT}))"
+        break
+    fi
+
+    echo "Enter a port between 1 and 65535."
 done
 
 is_valid_ipv4() {
@@ -194,8 +207,10 @@ for ((PEER_INDEX = 1; PEER_INDEX <= LOCAL_PEER_COUNT; PEER_INDEX++)); do
         read -r -p "  Port (required): " PEER_PORT_INPUT || true
         PEER_PORT="${PEER_PORT_INPUT}"
 
-        if [[ "${PEER_PORT}" =~ ^[0-9]+$ ]] && ((PEER_PORT >= 1 && PEER_PORT <= 65535)); then
-            LOCAL_PEER_PORTS+=("${PEER_PORT}")
+        if [[ "${PEER_PORT}" =~ ^[0-9]+$ ]] \
+            && ((${#PEER_PORT} <= 5)) \
+            && ((10#${PEER_PORT} >= 1 && 10#${PEER_PORT} <= 65535)); then
+            LOCAL_PEER_PORTS+=("$((10#${PEER_PORT}))")
             break
         fi
 
