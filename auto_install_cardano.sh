@@ -57,14 +57,12 @@ NODE_PORT="3002"
 NODE_BIND_ADDRESS="0.0.0.0"
 
 # ----------------------------------------------------------
-# Local relay
+# Topology defaults
 # ----------------------------------------------------------
 
-LOCAL_RELAY_ADDRESS="192.168.50.7"
-LOCAL_RELAY_PORT="3002"
-LOCAL_RELAY_NAME="crlnode02"
+DEFAULT_NODE_ROLE="relay"
+DEFAULT_LOCAL_PEER_COUNT="1"
 
-LOCAL_ROOT_VALENCY="1"
 LOCAL_ROOT_ADVERTISE="false"
 LOCAL_ROOT_TRUSTABLE="true"
 
@@ -91,6 +89,101 @@ INSTALL_GLIVEVIEW="true"
 # ----------------------------------------------------------
 
 SERVICE_NAME="cardano-node"
+
+
+# ==========================================================
+# INTERACTIVE TOPOLOGY CONFIGURATION
+# ==========================================================
+
+echo
+echo "=========================================================="
+echo " CARDANO TOPOLOGY CONFIGURATION"
+echo "=========================================================="
+echo
+
+while true; do
+    NODE_ROLE_INPUT=""
+    read -r -p "Node role: relay or block-producer [${DEFAULT_NODE_ROLE}]: " NODE_ROLE_INPUT || true
+    NODE_ROLE="${NODE_ROLE_INPUT:-${DEFAULT_NODE_ROLE}}"
+    NODE_ROLE="${NODE_ROLE,,}"
+
+    case "${NODE_ROLE}" in
+        relay|block-producer)
+            break
+            ;;
+        blockproducer|bp)
+            NODE_ROLE="block-producer"
+            break
+            ;;
+        *)
+            echo "Enter relay or block-producer."
+            ;;
+    esac
+done
+
+while true; do
+    LOCAL_PEER_COUNT_INPUT=""
+    read -r -p "Number of local peers (1 or 2) [${DEFAULT_LOCAL_PEER_COUNT}]: " LOCAL_PEER_COUNT_INPUT || true
+    LOCAL_PEER_COUNT="${LOCAL_PEER_COUNT_INPUT:-${DEFAULT_LOCAL_PEER_COUNT}}"
+
+    if [[ "${LOCAL_PEER_COUNT}" == "1" || "${LOCAL_PEER_COUNT}" == "2" ]]; then
+        break
+    fi
+
+    echo "Enter 1 or 2."
+done
+
+declare -a LOCAL_PEER_ADDRESSES=()
+declare -a LOCAL_PEER_PORTS=()
+declare -a LOCAL_PEER_NAMES=()
+
+for ((PEER_INDEX = 1; PEER_INDEX <= LOCAL_PEER_COUNT; PEER_INDEX++)); do
+    if [[ "${NODE_ROLE}" == "block-producer" ]]; then
+        if [[ "${PEER_INDEX}" == "1" ]]; then
+            DEFAULT_PEER_ADDRESS="192.168.50.6"
+            DEFAULT_PEER_PORT="3001"
+            DEFAULT_PEER_NAME="relay1"
+        else
+            DEFAULT_PEER_ADDRESS="192.168.50.7"
+            DEFAULT_PEER_PORT="3002"
+            DEFAULT_PEER_NAME="relay2"
+        fi
+    else
+        if [[ "${PEER_INDEX}" == "1" ]]; then
+            DEFAULT_PEER_ADDRESS="192.168.50.7"
+            DEFAULT_PEER_PORT="3002"
+            DEFAULT_PEER_NAME="crlnode02"
+        else
+            DEFAULT_PEER_ADDRESS="192.168.50.6"
+            DEFAULT_PEER_PORT="3001"
+            DEFAULT_PEER_NAME="crlnode01"
+        fi
+    fi
+
+    echo
+    echo "Local peer ${PEER_INDEX}"
+
+    PEER_ADDRESS_INPUT=""
+    read -r -p "  Address [${DEFAULT_PEER_ADDRESS}]: " PEER_ADDRESS_INPUT || true
+    LOCAL_PEER_ADDRESSES+=("${PEER_ADDRESS_INPUT:-${DEFAULT_PEER_ADDRESS}}")
+
+    while true; do
+        PEER_PORT_INPUT=""
+        read -r -p "  Port [${DEFAULT_PEER_PORT}]: " PEER_PORT_INPUT || true
+        PEER_PORT="${PEER_PORT_INPUT:-${DEFAULT_PEER_PORT}}"
+
+        if [[ "${PEER_PORT}" =~ ^[0-9]+$ ]] && ((PEER_PORT >= 1 && PEER_PORT <= 65535)); then
+            LOCAL_PEER_PORTS+=("${PEER_PORT}")
+            break
+        fi
+
+        echo "  Enter a port between 1 and 65535."
+    done
+
+    PEER_NAME_INPUT=""
+    read -r -p "  Name [${DEFAULT_PEER_NAME}]: " PEER_NAME_INPUT || true
+    LOCAL_PEER_NAMES+=("${PEER_NAME_INPUT:-${DEFAULT_PEER_NAME}}")
+done
 
 
 # ==========================================================
@@ -148,8 +241,12 @@ echo "Database:              ${NODE_DB}"
 echo "Config:                ${NODE_CONFIG_DIR}"
 echo "Socket:                ${NODE_SOCKET}"
 echo
-echo "Local relay:           ${LOCAL_RELAY_ADDRESS}:${LOCAL_RELAY_PORT}"
-echo "Local relay name:      ${LOCAL_RELAY_NAME}"
+echo "Node role:             ${NODE_ROLE}"
+echo "Local peer count:      ${LOCAL_PEER_COUNT}"
+
+for ((PEER_INDEX = 0; PEER_INDEX < LOCAL_PEER_COUNT; PEER_INDEX++)); do
+    echo "Local peer $((PEER_INDEX + 1)):          ${LOCAL_PEER_NAMES[PEER_INDEX]} (${LOCAL_PEER_ADDRESSES[PEER_INDEX]}:${LOCAL_PEER_PORTS[PEER_INDEX]})"
+done
 echo
 echo "=========================================================="
 echo
@@ -605,42 +702,59 @@ wget -N \
 echo
 echo "=== Create topology.json ==="
 
-cat > "${NODE_CONFIG_DIR}/topology.json" <<TOPOLOGY
-{
-  "bootstrapPeers": [
-    {
-      "address": "backbone.cardano.iog.io",
-      "port": 3001
-    },
-    {
-      "address": "backbone.mainnet.cardanofoundation.org",
-      "port": 3001
-    }
-  ],
-  "localRoots": [
-    {
-      "accessPoints": [
-        {
-          "address": "${LOCAL_RELAY_ADDRESS}",
-          "port": ${LOCAL_RELAY_PORT},
-          "name": "${LOCAL_RELAY_NAME}"
-        }
-      ],
-      "advertise": ${LOCAL_ROOT_ADVERTISE},
-      "trustable": ${LOCAL_ROOT_TRUSTABLE},
-      "valency": ${LOCAL_ROOT_VALENCY}
-    }
-  ],
-  "peerSnapshotFile": "peer-snapshot.json",
-  "publicRoots": [
-    {
-      "accessPoints": [],
-      "advertise": false
-    }
-  ],
-  "useLedgerAfterSlot": ${USE_LEDGER_AFTER_SLOT}
-}
-TOPOLOGY
+LOCAL_ACCESS_POINTS='[]'
+
+for ((PEER_INDEX = 0; PEER_INDEX < LOCAL_PEER_COUNT; PEER_INDEX++)); do
+    LOCAL_ACCESS_POINTS="$(
+        jq -c \
+            --argjson accessPoints "${LOCAL_ACCESS_POINTS}" \
+            --arg address "${LOCAL_PEER_ADDRESSES[PEER_INDEX]}" \
+            --argjson port "${LOCAL_PEER_PORTS[PEER_INDEX]}" \
+            --arg name "${LOCAL_PEER_NAMES[PEER_INDEX]}" \
+            '$accessPoints + [{address: $address, port: $port, name: $name}]'
+    )"
+done
+
+if [[ "${NODE_ROLE}" == "block-producer" ]]; then
+    jq -n \
+        --argjson accessPoints "${LOCAL_ACCESS_POINTS}" \
+        --argjson advertise "${LOCAL_ROOT_ADVERTISE}" \
+        --argjson trustable "${LOCAL_ROOT_TRUSTABLE}" \
+        --argjson valency "${LOCAL_PEER_COUNT}" \
+        '{
+            bootstrapPeers: null,
+            localRoots: [{
+                accessPoints: $accessPoints,
+                advertise: $advertise,
+                trustable: $trustable,
+                valency: $valency
+            }],
+            publicRoots: [],
+            useLedgerAfterSlot: -1
+        }' > "${NODE_CONFIG_DIR}/topology.json"
+else
+    jq -n \
+        --argjson accessPoints "${LOCAL_ACCESS_POINTS}" \
+        --argjson advertise "${LOCAL_ROOT_ADVERTISE}" \
+        --argjson trustable "${LOCAL_ROOT_TRUSTABLE}" \
+        --argjson valency "${LOCAL_PEER_COUNT}" \
+        --argjson useLedgerAfterSlot "${USE_LEDGER_AFTER_SLOT}" \
+        '{
+            bootstrapPeers: [
+                {address: "backbone.cardano.iog.io", port: 3001},
+                {address: "backbone.mainnet.cardanofoundation.org", port: 3001}
+            ],
+            localRoots: [{
+                accessPoints: $accessPoints,
+                advertise: $advertise,
+                trustable: $trustable,
+                valency: $valency
+            }],
+            peerSnapshotFile: "peer-snapshot.json",
+            publicRoots: [{accessPoints: [], advertise: false}],
+            useLedgerAfterSlot: $useLedgerAfterSlot
+        }' > "${NODE_CONFIG_DIR}/topology.json"
+fi
 
 
 # ==========================================================
@@ -916,8 +1030,15 @@ echo
 echo "Node port:"
 echo "  ${NODE_PORT}"
 echo
-echo "Local relay:"
-echo "  ${LOCAL_RELAY_ADDRESS}:${LOCAL_RELAY_PORT}"
+echo "Node role:"
+echo "  ${NODE_ROLE}"
+echo
+echo "Local peers:"
+
+for ((PEER_INDEX = 0; PEER_INDEX < LOCAL_PEER_COUNT; PEER_INDEX++)); do
+    echo "  ${LOCAL_PEER_NAMES[PEER_INDEX]}: ${LOCAL_PEER_ADDRESSES[PEER_INDEX]}:${LOCAL_PEER_PORTS[PEER_INDEX]}"
+done
+
 echo
 echo "=========================================================="
 echo " USEFUL COMMANDS"
