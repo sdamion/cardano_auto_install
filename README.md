@@ -12,7 +12,7 @@ sudo apt update
 sudo apt install -y wget
 
 wget -O auto_install_cardano.sh \
-  https://raw.githubusercontent.com/sdamion/cardano_auto_install/main/auto_install_cardano.sh
+  https://github.com/sdamion/cardano_auto_install/releases/latest/download/auto_install_cardano.sh
 
 chmod +x auto_install_cardano.sh
 ./auto_install_cardano.sh
