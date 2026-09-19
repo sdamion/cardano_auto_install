@@ -78,7 +78,6 @@ USE_LEDGER_AFTER_SLOT="185500763"
 # Firewall
 # ----------------------------------------------------------
 
-SSH_PORT="22"
 OPEN_NODE_PORT="true"
 
 # ----------------------------------------------------------
@@ -736,8 +735,6 @@ sudo systemctl daemon-reload
 echo
 echo "=== Configure UFW firewall ==="
 
-sudo ufw allow "${SSH_PORT}/tcp"
-
 if [[ "${OPEN_NODE_PORT}" == "true" ]]; then
 
     echo "Opening Cardano node port ${NODE_PORT}/tcp"
@@ -745,8 +742,6 @@ if [[ "${OPEN_NODE_PORT}" == "true" ]]; then
     sudo ufw allow "${NODE_PORT}/tcp"
 
 fi
-
-sudo ufw --force enable
 
 
 # ==========================================================
