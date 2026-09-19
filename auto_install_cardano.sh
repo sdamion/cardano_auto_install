@@ -736,7 +736,7 @@ LOCAL_ACCESS_POINTS='[]'
 
 for ((PEER_INDEX = 0; PEER_INDEX < LOCAL_PEER_COUNT; PEER_INDEX++)); do
     LOCAL_ACCESS_POINTS="$(
-        jq -c \
+        jq -n -c \
             --argjson accessPoints "${LOCAL_ACCESS_POINTS}" \
             --arg address "${LOCAL_PEER_ADDRESSES[PEER_INDEX]}" \
             --argjson port "${LOCAL_PEER_PORTS[PEER_INDEX]}" \
