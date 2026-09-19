@@ -251,7 +251,7 @@ CARDANO_NODE_REPO="${GIT_HOME}/cardano-node"
 BLST_DIR="${USER_HOME}/blst"
 LIBSODIUM_DIR="${USER_HOME}/libsodium"
 
-LOCAL_BIN="${USER_HOME}/.local/bin"
+LOCAL_BIN="/usr/local/bin"
 
 GHCUP_HOME="${USER_HOME}/.ghcup"
 CABAL_HOME="${USER_HOME}/.cabal"
@@ -517,8 +517,7 @@ mkdir -p \
     "${NODE_CONFIG_DIR}" \
     "${NODE_KEYS}" \
     "${NODE_SCRIPTS}" \
-    "${NODE_LOGS}" \
-    "${LOCAL_BIN}"
+    "${NODE_LOGS}"
 
 
 # ==========================================================
@@ -803,19 +802,19 @@ cabal build \
 echo
 echo "=== Install Cardano binaries ==="
 
-mkdir -p "${LOCAL_BIN}"
+sudo mkdir -p "${LOCAL_BIN}"
 
-cp -p \
-    "$(cabal list-bin cardano-node)" \
-    "${LOCAL_BIN}/cardano-node"
+sudo cp -p \
+    "$(./scripts/bin-path.sh cardano-node)" \
+    /usr/local/bin/cardano-node
 
-cp -p \
-    "$(cabal list-bin cardano-cli)" \
-    "${LOCAL_BIN}/cardano-cli"
+sudo cp -p \
+    "$(./scripts/bin-path.sh cardano-cli)" \
+    /usr/local/bin/cardano-cli
 
-chmod +x \
-    "${LOCAL_BIN}/cardano-node" \
-    "${LOCAL_BIN}/cardano-cli"
+sudo chmod +x \
+    /usr/local/bin/cardano-node \
+    /usr/local/bin/cardano-cli
 
 
 # ==========================================================
@@ -1091,7 +1090,6 @@ sudo chown -R \
     "${CURRENT_USER}:${CURRENT_GROUP}" \
     "${NODE_HOME}" \
     "${GIT_HOME}" \
-    "${LOCAL_BIN}" \
     "${BLST_DIR}" \
     "${LIBSODIUM_DIR}"
 

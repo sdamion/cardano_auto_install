@@ -48,3 +48,5 @@ Review the displayed configuration before confirming installation. The
 installer can optionally upgrade system packages, builds and installs
 libraries, configures systemd, and adds a Cardano port rule to UFW without
 enabling the firewall. It must be run as a normal user with sudo access.
+The completed `cardano-node` and `cardano-cli` binaries are installed globally
+in `/usr/local/bin` using Cardano's `scripts/bin-path.sh` helper.
