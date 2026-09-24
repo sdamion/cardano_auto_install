@@ -27,12 +27,13 @@ The complete supplied script has been assembled and passes `bash -n` syntax vali
 
 During installation, the script prompts for the Cardano network (`mainnet`,
 `preprod`, or `preview`), the required node listening port, the node role
-(`relay` or `block-producer`), whether to configure one or two local peers,
-and each peer's address, port, and name. Peer IPv4 addresses, ports, and names
-have no defaults and are required. Addresses must contain four octets in the
-0–255 range, and all ports must be in the 1–65535 range. Relay nodes retain
-public bootstrap peers; block producers connect only to the configured relay
-peers.
+(`relay` or `block-producer`), the database folder, whether to configure one
+or two local peers, and each peer's address, port, and name. The database must
+be an absolute path and defaults to `$HOME/cardano/db`. Peer IPv4 addresses,
+ports, and names have no defaults and are required. Addresses must contain
+four octets in the 0–255 range, and all ports must be in the 1–65535 range.
+Relay nodes retain public bootstrap peers; block producers connect only to
+the configured relay peers.
 
 The installer checks the latest non-prerelease Cardano Node version through
 the official IntersectMBO GitHub Releases API. It then reads that release

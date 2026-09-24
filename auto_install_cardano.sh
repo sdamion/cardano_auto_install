@@ -52,6 +52,7 @@ BLST_VERSION="v0.3.14"
 LIBSODIUM_COMMIT="dbb48cc"
 
 DEFAULT_NETWORK="mainnet"
+DEFAULT_NODE_DB="${USER_HOME}/cardano/db"
 
 NODE_BIND_ADDRESS="0.0.0.0"
 
@@ -128,6 +129,22 @@ while true; do
     fi
 
     echo "Enter a port between 1 and 65535."
+done
+
+while true; do
+    NODE_DB_INPUT=""
+    read -r -p "Cardano database folder [${DEFAULT_NODE_DB}]: " NODE_DB_INPUT || true
+    NODE_DB="${NODE_DB_INPUT:-${DEFAULT_NODE_DB}}"
+
+    while [[ "${NODE_DB}" != "/" && "${NODE_DB}" == */ ]]; do
+        NODE_DB="${NODE_DB%/}"
+    done
+
+    if [[ "${NODE_DB}" == /* && "${NODE_DB}" != "/" ]]; then
+        break
+    fi
+
+    echo "Enter an absolute folder path other than /."
 done
 
 is_valid_ipv4() {
@@ -238,7 +255,6 @@ done
 NODE_HOME="${USER_HOME}/cardano"
 GIT_HOME="${USER_HOME}/git"
 
-NODE_DB="${NODE_HOME}/db"
 NODE_CONFIG_DIR="${NODE_HOME}/config"
 NODE_KEYS="${NODE_HOME}/keys"
 NODE_SCRIPTS="${NODE_HOME}/scripts"
@@ -1089,6 +1105,7 @@ echo "=== Set ownership ==="
 sudo chown -R \
     "${CURRENT_USER}:${CURRENT_GROUP}" \
     "${NODE_HOME}" \
+    "${NODE_DB}" \
     "${GIT_HOME}" \
     "${BLST_DIR}" \
     "${LIBSODIUM_DIR}"
