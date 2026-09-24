@@ -31,11 +31,13 @@ During installation, the script prompts for the Cardano network (`mainnet`,
 one or two local peers, and each peer's address, port, and name. The directory in
 which the installer is started becomes the installation base. The requested
 Cardano folder name is created below that directory, and its `db` subfolder is
-used as `NODE_DB`. Folder names may contain 1–64 letters, numbers, dots,
-underscores, or hyphens. Peer IPv4 addresses, ports, and names have no defaults
-and are required. Addresses must contain four octets in the 0–255 range, and
-all ports must be in the 1–65535 range. Relay nodes retain public bootstrap
-peers; block producers connect only to the configured relay peers.
+used as `NODE_DB`. The source repositories, BLST, libsodium, GHCup, and Cabal
+directories are also kept below the chosen Cardano folder instead of being
+written directly into `$HOME`. Folder names may contain 1–64 letters, numbers,
+dots, underscores, or hyphens. Peer IPv4 addresses, ports, and names have no
+defaults and are required. Addresses must contain four octets in the 0–255
+range, and all ports must be in the 1–65535 range. Relay nodes retain public
+bootstrap peers; block producers connect only to the configured relay peers.
 
 The installer checks the latest non-prerelease Cardano Node version through
 the official IntersectMBO GitHub Releases API. It then reads that release

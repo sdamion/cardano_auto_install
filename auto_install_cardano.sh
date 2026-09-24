@@ -17,7 +17,7 @@ set -euo pipefail
 #
 #   Current user
 #   Current working directory/<chosen Cardano folder>
-#   $HOME/git
+#   All build and tool directories below the chosen Cardano folder
 #
 # ==========================================================
 
@@ -37,6 +37,12 @@ if [[ "${CURRENT_USER}" == "root" ]]; then
     echo "Run:"
     echo "  ./install-cardano-node.sh"
     echo
+    exit 1
+fi
+
+if [[ ! -w "${INSTALL_BASE_DIR}" ]]; then
+    echo "ERROR: The current directory is not writable: ${INSTALL_BASE_DIR}"
+    echo "Change to a directory owned by ${CURRENT_USER} and rerun the installer."
     exit 1
 fi
 
@@ -250,7 +256,8 @@ done
 # ==========================================================
 
 NODE_HOME="${INSTALL_BASE_DIR}/${CARDANO_FOLDER_NAME}"
-GIT_HOME="${USER_HOME}/git"
+GIT_HOME="${NODE_HOME}/git"
+TOOLS_HOME="${NODE_HOME}/tools"
 
 NODE_DB="${NODE_HOME}/db"
 NODE_CONFIG_DIR="${NODE_HOME}/config"
@@ -262,13 +269,17 @@ NODE_SOCKET="${NODE_DB}/node.socket"
 
 CARDANO_NODE_REPO="${GIT_HOME}/cardano-node"
 
-BLST_DIR="${USER_HOME}/blst"
-LIBSODIUM_DIR="${USER_HOME}/libsodium"
+BLST_DIR="${GIT_HOME}/blst"
+LIBSODIUM_DIR="${GIT_HOME}/libsodium"
 
 LOCAL_BIN="/usr/local/bin"
 
-GHCUP_HOME="${USER_HOME}/.ghcup"
-CABAL_HOME="${USER_HOME}/.cabal"
+GHCUP_INSTALL_BASE_PREFIX="${TOOLS_HOME}"
+GHCUP_HOME="${GHCUP_INSTALL_BASE_PREFIX}/.ghcup"
+CABAL_HOME="${TOOLS_HOME}/.cabal"
+
+export GHCUP_INSTALL_BASE_PREFIX
+export CABAL_DIR="${CABAL_HOME}"
 
 CARDANO_CONFIG_BASE_URL="https://book.world.dev.cardano.org/environments/${NETWORK}"
 
@@ -295,6 +306,7 @@ echo "Bind address:          ${NODE_BIND_ADDRESS}"
 echo
 echo "Node home:             ${NODE_HOME}"
 echo "Git home:              ${GIT_HOME}"
+echo "Tools home:            ${TOOLS_HOME}"
 echo "Database:              ${NODE_DB}"
 echo "Config:                ${NODE_CONFIG_DIR}"
 echo "Socket:                ${NODE_SOCKET}"
@@ -528,6 +540,7 @@ echo "=== Create directories ==="
 
 mkdir -p \
     "${GIT_HOME}" \
+    "${TOOLS_HOME}" \
     "${NODE_DB}" \
     "${NODE_CONFIG_DIR}" \
     "${NODE_KEYS}" \
@@ -549,7 +562,9 @@ if [[ ! -x "${GHCUP_HOME}/bin/ghcup" ]]; then
         --tlsv1.2 \
         -sSf \
         https://get-ghcup.haskell.org \
-        | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 sh
+        | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 \
+            GHCUP_INSTALL_BASE_PREFIX="${GHCUP_INSTALL_BASE_PREFIX}" \
+            sh
 
 else
 
@@ -603,6 +618,8 @@ echo "Installed Cabal version: ${CABAL_VERSION}"
 # ==========================================================
 
 export PATH="${LOCAL_BIN}:${CABAL_HOME}/bin:${GHCUP_HOME}/bin:/usr/bin:/bin:${PATH}"
+export CABAL_DIR="${CABAL_HOME}"
+export GHCUP_INSTALL_BASE_PREFIX="${GHCUP_INSTALL_BASE_PREFIX}"
 
 export LIBRARY_PATH="/usr/local/lib:${LIBRARY_PATH:-}"
 
@@ -627,6 +644,8 @@ echo "=== Configure .bashrc ==="
 BASHRC_START="# >>> Cardano node environment >>>"
 BASHRC_END="# <<< Cardano node environment <<<"
 
+if [[ -d "${USER_HOME}" && -w "${USER_HOME}" ]]; then
+
 touch "${USER_HOME}/.bashrc"
 
 if grep -qF "${BASHRC_START}" "${USER_HOME}/.bashrc"; then
@@ -641,6 +660,8 @@ cat >> "${USER_HOME}/.bashrc" <<BASHRC
 
 ${BASHRC_START}
 export PATH="${LOCAL_BIN}:${CABAL_HOME}/bin:${GHCUP_HOME}/bin:/usr/bin:/bin:\$PATH"
+export CABAL_DIR="${CABAL_HOME}"
+export GHCUP_INSTALL_BASE_PREFIX="${GHCUP_INSTALL_BASE_PREFIX}"
 export LIBRARY_PATH="/usr/local/lib:\${LIBRARY_PATH:-}"
 export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:\${PKG_CONFIG_PATH:-}"
 export C_INCLUDE_PATH="/usr/local/include/blst:\${C_INCLUDE_PATH:-}"
@@ -649,6 +670,12 @@ export NODE_CONFIG="${NETWORK}"
 export CARDANO_NODE_SOCKET_PATH="${NODE_SOCKET}"
 ${BASHRC_END}
 BASHRC
+
+else
+
+    echo "WARNING: ${USER_HOME} is not writable; skipping .bashrc configuration."
+
+fi
 
 
 # ==========================================================
@@ -1113,11 +1140,7 @@ echo "=== Set ownership ==="
 
 sudo chown -R \
     "${CURRENT_USER}:${CURRENT_GROUP}" \
-    "${NODE_HOME}" \
-    "${NODE_DB}" \
-    "${GIT_HOME}" \
-    "${BLST_DIR}" \
-    "${LIBSODIUM_DIR}"
+    "${NODE_HOME}"
 
 
 # ==========================================================
