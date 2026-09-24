@@ -542,7 +542,7 @@ mkdir -p \
 echo
 echo "=== Install GHCup ==="
 
-if [[ ! -d "${GHCUP_HOME}" ]]; then
+if [[ ! -x "${GHCUP_HOME}/bin/ghcup" ]]; then
 
     curl \
         --proto '=https' \
@@ -557,7 +557,17 @@ else
 
 fi
 
-source "${GHCUP_HOME}/env"
+if [[ -f "${GHCUP_HOME}/env" ]]; then
+    source "${GHCUP_HOME}/env"
+fi
+
+export PATH="${GHCUP_HOME}/bin:${PATH}"
+
+if ! command -v ghcup >/dev/null 2>&1; then
+    echo "ERROR: GHCup installation did not create ${GHCUP_HOME}/bin/ghcup."
+    echo "Remove the incomplete ${GHCUP_HOME} directory and rerun this installer."
+    exit 1
+fi
 
 
 # ==========================================================
