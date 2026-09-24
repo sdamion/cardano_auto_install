@@ -16,7 +16,7 @@ set -euo pipefail
 # Automatically uses:
 #
 #   Current user
-#   $HOME/cardano
+#   Current working directory/<chosen Cardano folder>
 #   $HOME/git
 #
 # ==========================================================
@@ -29,6 +29,7 @@ set -euo pipefail
 CURRENT_USER="$(id -un)"
 CURRENT_GROUP="$(id -gn)"
 USER_HOME="${HOME}"
+INSTALL_BASE_DIR="$(pwd -P)"
 
 if [[ "${CURRENT_USER}" == "root" ]]; then
     echo "ERROR: Do not run this installer as root."
@@ -52,7 +53,7 @@ BLST_VERSION="v0.3.14"
 LIBSODIUM_COMMIT="dbb48cc"
 
 DEFAULT_NETWORK="mainnet"
-DEFAULT_NODE_DB="${USER_HOME}/cardano/db"
+DEFAULT_CARDANO_FOLDER_NAME="cardano"
 
 NODE_BIND_ADDRESS="0.0.0.0"
 
@@ -132,19 +133,15 @@ while true; do
 done
 
 while true; do
-    NODE_DB_INPUT=""
-    read -r -p "Cardano database folder [${DEFAULT_NODE_DB}]: " NODE_DB_INPUT || true
-    NODE_DB="${NODE_DB_INPUT:-${DEFAULT_NODE_DB}}"
+    CARDANO_FOLDER_NAME_INPUT=""
+    read -r -p "Cardano folder name [${DEFAULT_CARDANO_FOLDER_NAME}]: " CARDANO_FOLDER_NAME_INPUT || true
+    CARDANO_FOLDER_NAME="${CARDANO_FOLDER_NAME_INPUT:-${DEFAULT_CARDANO_FOLDER_NAME}}"
 
-    while [[ "${NODE_DB}" != "/" && "${NODE_DB}" == */ ]]; do
-        NODE_DB="${NODE_DB%/}"
-    done
-
-    if [[ "${NODE_DB}" == /* && "${NODE_DB}" != "/" ]]; then
+    if [[ "${CARDANO_FOLDER_NAME}" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$ ]]; then
         break
     fi
 
-    echo "Enter an absolute folder path other than /."
+    echo "Enter a folder name of 1-64 letters, numbers, dots, underscores, or hyphens."
 done
 
 is_valid_ipv4() {
@@ -252,9 +249,10 @@ done
 # AUTOMATIC PATHS
 # ==========================================================
 
-NODE_HOME="${USER_HOME}/cardano"
+NODE_HOME="${INSTALL_BASE_DIR}/${CARDANO_FOLDER_NAME}"
 GIT_HOME="${USER_HOME}/git"
 
+NODE_DB="${NODE_HOME}/db"
 NODE_CONFIG_DIR="${NODE_HOME}/config"
 NODE_KEYS="${NODE_HOME}/keys"
 NODE_SCRIPTS="${NODE_HOME}/scripts"
@@ -287,6 +285,7 @@ echo
 echo "User:                  ${CURRENT_USER}"
 echo "Group:                 ${CURRENT_GROUP}"
 echo "Home:                  ${USER_HOME}"
+echo "Install base:          ${INSTALL_BASE_DIR}"
 echo
 echo "Software versions:     detected from the latest official Cardano release"
 echo
