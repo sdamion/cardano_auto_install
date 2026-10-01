@@ -315,11 +315,29 @@ else
     fi
 
     SERVICE_FILE="$(systemctl show "${SERVICE_NAME}" --property=FragmentPath --value)"
+    if [[ -z "${SERVICE_FILE}" || ! -f "${SERVICE_FILE}" ]]; then
+        echo "ERROR: Could not locate the systemd service file for ${SERVICE_NAME}."
+        exit 1
+    fi
+
+    START_SCRIPT="$(sed -n 's/^[[:space:]]*ExecStart=[-]*"\{0,1\}\([^"[:space:]]*\).*/\1/p' "${SERVICE_FILE}" | head -n 1)"
     NODE_HOME="$(systemctl show "${SERVICE_NAME}" --property=WorkingDirectory --value)"
-    START_SCRIPT="$(sed -n 's/^[[:space:]]*ExecStart=[-]*\([^[:space:]]*\).*/\1/p' "${SERVICE_FILE}" | head -n 1)"
+
+    if [[ -z "${NODE_HOME}" || ! -d "${NODE_HOME}" ]]; then
+        NODE_HOME="$(sed -n 's/^[[:space:]]*WorkingDirectory="\{0,1\}\([^"[:space:]]*\)"\{0,1\}[[:space:]]*$/\1/p' "${SERVICE_FILE}" | head -n 1)"
+    fi
+
+    if [[ -z "${NODE_HOME}" || ! -d "${NODE_HOME}" ]]; then
+        NODE_HOME="$(sed -n 's/^[[:space:]]*Environment="\{0,1\}NODE_HOME=\([^"[:space:]]*\)"\{0,1\}.*/\1/p' "${SERVICE_FILE}" | head -n 1)"
+    fi
+
+    if [[ ( -z "${NODE_HOME}" || ! -d "${NODE_HOME}" ) && -n "${START_SCRIPT}" ]]; then
+        NODE_HOME="$(dirname "$(dirname "${START_SCRIPT}")")"
+    fi
 
     if [[ -z "${NODE_HOME}" || ! -d "${NODE_HOME}" ]]; then
         echo "ERROR: Could not detect a valid node home from ${SERVICE_FILE}."
+        echo "Checked systemctl WorkingDirectory, the service file, NODE_HOME, and ExecStart."
         exit 1
     fi
     if [[ -z "${START_SCRIPT}" || ! -f "${START_SCRIPT}" ]]; then
