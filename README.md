@@ -21,11 +21,28 @@ chmod +x auto_install_cardano.sh
 Do not start the installer with `sudo`. The script requests `sudo` itself only
 for operations that need administrative access.
 
+## Update an existing node
+
+Download and run the latest installer with the same commands shown above, then
+choose `update` at the first prompt. Start the script from the same parent
+directory used for the installation and enter the existing Cardano folder
+name. The updater detects the latest official Cardano Node, GHC, and Cabal
+versions, builds them, backs up the current `cardano-node` and `cardano-cli`
+binaries, briefly stops the service, installs the new binaries, and restarts
+the service.
+
+Update mode preserves the existing database, configuration, topology, keys,
+start script, systemd service file, firewall settings, and gLiveView settings.
+Binary backups are stored in the chosen Cardano folder under `backups/`. If
+binary replacement or service restart fails, the updater attempts to restore
+the previous binaries and start the service again.
+
 ## Validation
 
 The complete supplied script has been assembled and passes `bash -n` syntax validation.
 
-During installation, the script prompts for the Cardano network (`mainnet`,
+At startup, the script prompts for `install` or `update`. During installation,
+the script prompts for the Cardano network (`mainnet`,
 `preprod`, or `preview`), the required node listening port, the node role
 (`relay` or `block-producer`), the Cardano folder name, whether to configure
 one or two local peers, and each peer's address, port, and name. The directory in

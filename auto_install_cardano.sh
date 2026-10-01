@@ -99,44 +99,62 @@ SERVICE_NAME="cardano-node"
 
 
 # ==========================================================
-# INTERACTIVE TOPOLOGY CONFIGURATION
+# INTERACTIVE OPERATION AND TOPOLOGY CONFIGURATION
 # ==========================================================
 
 echo
 echo "=========================================================="
-echo " CARDANO TOPOLOGY CONFIGURATION"
+echo " CARDANO NODE INSTALLER"
 echo "=========================================================="
 echo
 
 while true; do
-    NETWORK_INPUT=""
-    read -r -p "Cardano network: mainnet, preprod, or preview [${DEFAULT_NETWORK}]: " NETWORK_INPUT || true
-    NETWORK="${NETWORK_INPUT:-${DEFAULT_NETWORK}}"
-    NETWORK="${NETWORK,,}"
+    OPERATION_INPUT=""
+    read -r -p "Operation: install or update [install]: " OPERATION_INPUT || true
+    OPERATION="${OPERATION_INPUT:-install}"
+    OPERATION="$(printf '%s' "${OPERATION}" | tr '[:upper:]' '[:lower:]')"
 
-    case "${NETWORK}" in
-        mainnet|preprod|preview)
+    case "${OPERATION}" in
+        install|update)
             break
             ;;
         *)
-            echo "Enter mainnet, preprod, or preview."
+            echo "Enter install or update."
             ;;
     esac
 done
 
-while true; do
-    NODE_PORT_INPUT=""
-    read -r -p "Cardano node listening port (required): " NODE_PORT_INPUT || true
+if [[ "${OPERATION}" == "install" ]]; then
+    while true; do
+        NETWORK_INPUT=""
+        read -r -p "Cardano network: mainnet, preprod, or preview [${DEFAULT_NETWORK}]: " NETWORK_INPUT || true
+        NETWORK="${NETWORK_INPUT:-${DEFAULT_NETWORK}}"
+        NETWORK="$(printf '%s' "${NETWORK}" | tr '[:upper:]' '[:lower:]')"
 
-    if [[ "${NODE_PORT_INPUT}" =~ ^[0-9]+$ ]] \
-        && ((${#NODE_PORT_INPUT} <= 5)) \
-        && ((10#${NODE_PORT_INPUT} >= 1 && 10#${NODE_PORT_INPUT} <= 65535)); then
-        NODE_PORT="$((10#${NODE_PORT_INPUT}))"
-        break
-    fi
+        case "${NETWORK}" in
+            mainnet|preprod|preview)
+                break
+                ;;
+            *)
+                echo "Enter mainnet, preprod, or preview."
+                ;;
+        esac
+    done
 
-    echo "Enter a port between 1 and 65535."
-done
+    while true; do
+        NODE_PORT_INPUT=""
+        read -r -p "Cardano node listening port (required): " NODE_PORT_INPUT || true
+
+        if [[ "${NODE_PORT_INPUT}" =~ ^[0-9]+$ ]] \
+            && ((${#NODE_PORT_INPUT} <= 5)) \
+            && ((10#${NODE_PORT_INPUT} >= 1 && 10#${NODE_PORT_INPUT} <= 65535)); then
+            NODE_PORT="$((10#${NODE_PORT_INPUT}))"
+            break
+        fi
+
+        echo "Enter a port between 1 and 65535."
+    done
+fi
 
 while true; do
     CARDANO_FOLDER_NAME_INPUT=""
@@ -150,6 +168,7 @@ while true; do
     echo "Enter a folder name of 1-64 letters, numbers, dots, underscores, or hyphens."
 done
 
+if [[ "${OPERATION}" == "install" ]]; then
 is_valid_ipv4() {
     local ip_address="$1"
     local octet
@@ -174,7 +193,7 @@ while true; do
     NODE_ROLE_INPUT=""
     read -r -p "Node role: relay or block-producer [${DEFAULT_NODE_ROLE}]: " NODE_ROLE_INPUT || true
     NODE_ROLE="${NODE_ROLE_INPUT:-${DEFAULT_NODE_ROLE}}"
-    NODE_ROLE="${NODE_ROLE,,}"
+    NODE_ROLE="$(printf '%s' "${NODE_ROLE}" | tr '[:upper:]' '[:lower:]')"
 
     case "${NODE_ROLE}" in
         relay|block-producer)
@@ -250,6 +269,16 @@ for ((PEER_INDEX = 1; PEER_INDEX <= LOCAL_PEER_COUNT; PEER_INDEX++)); do
     done
 done
 
+else
+    NETWORK="existing"
+    NODE_PORT="existing"
+    NODE_ROLE="existing"
+    LOCAL_PEER_COUNT="0"
+    declare -a LOCAL_PEER_ADDRESSES=()
+    declare -a LOCAL_PEER_PORTS=()
+    declare -a LOCAL_PEER_NAMES=()
+fi
+
 
 # ==========================================================
 # AUTOMATIC PATHS
@@ -283,6 +312,33 @@ export CABAL_DIR="${CABAL_HOME}"
 
 CARDANO_CONFIG_BASE_URL="https://book.world.dev.cardano.org/environments/${NETWORK}"
 
+INSTALLED_NODE_VERSION=""
+if [[ "${OPERATION}" == "update" ]]; then
+    if [[ ! -d "${NODE_HOME}" ]]; then
+        echo "ERROR: Existing Cardano folder not found: ${NODE_HOME}"
+        echo "Run the updater from the same parent directory and enter the existing folder name."
+        exit 1
+    fi
+
+    if [[ ! -d "${CARDANO_NODE_REPO}/.git" ]]; then
+        echo "ERROR: Cardano source repository not found: ${CARDANO_NODE_REPO}"
+        echo "This installation cannot be updated safely with this script."
+        exit 1
+    fi
+
+    if [[ ! -x "${LOCAL_BIN}/cardano-node" || ! -x "${LOCAL_BIN}/cardano-cli" ]]; then
+        echo "ERROR: Existing Cardano binaries were not found in ${LOCAL_BIN}."
+        exit 1
+    fi
+
+    if ! systemctl cat "${SERVICE_NAME}" >/dev/null 2>&1; then
+        echo "ERROR: Existing systemd service not found: ${SERVICE_NAME}"
+        exit 1
+    fi
+
+    INSTALLED_NODE_VERSION="$("${LOCAL_BIN}/cardano-node" --version | awk 'NR == 1 {print $2}')"
+fi
+
 
 # ==========================================================
 # SHOW CONFIGURATION
@@ -295,14 +351,11 @@ echo "=========================================================="
 echo
 echo "User:                  ${CURRENT_USER}"
 echo "Group:                 ${CURRENT_GROUP}"
+echo "Operation:             ${OPERATION}"
 echo "Home:                  ${USER_HOME}"
 echo "Install base:          ${INSTALL_BASE_DIR}"
 echo
 echo "Software versions:     detected from the latest official Cardano release"
-echo
-echo "Network:               ${NETWORK}"
-echo "Node port:             ${NODE_PORT}"
-echo "Bind address:          ${NODE_BIND_ADDRESS}"
 echo
 echo "Node home:             ${NODE_HOME}"
 echo "Git home:              ${GIT_HOME}"
@@ -311,12 +364,22 @@ echo "Database:              ${NODE_DB}"
 echo "Config:                ${NODE_CONFIG_DIR}"
 echo "Socket:                ${NODE_SOCKET}"
 echo
-echo "Node role:             ${NODE_ROLE}"
-echo "Local peer count:      ${LOCAL_PEER_COUNT}"
+if [[ "${OPERATION}" == "install" ]]; then
+    echo
+    echo "Network:               ${NETWORK}"
+    echo "Node port:             ${NODE_PORT}"
+    echo "Bind address:          ${NODE_BIND_ADDRESS}"
+    echo "Node role:             ${NODE_ROLE}"
+    echo "Local peer count:      ${LOCAL_PEER_COUNT}"
 
-for ((PEER_INDEX = 0; PEER_INDEX < LOCAL_PEER_COUNT; PEER_INDEX++)); do
-    echo "Local peer $((PEER_INDEX + 1)):          ${LOCAL_PEER_NAMES[PEER_INDEX]} (${LOCAL_PEER_ADDRESSES[PEER_INDEX]}:${LOCAL_PEER_PORTS[PEER_INDEX]})"
-done
+    for ((PEER_INDEX = 0; PEER_INDEX < LOCAL_PEER_COUNT; PEER_INDEX++)); do
+        echo "Local peer $((PEER_INDEX + 1)):          ${LOCAL_PEER_NAMES[PEER_INDEX]} (${LOCAL_PEER_ADDRESSES[PEER_INDEX]}:${LOCAL_PEER_PORTS[PEER_INDEX]})"
+    done
+else
+    echo "Installed version:     ${INSTALLED_NODE_VERSION}"
+    echo
+    echo "The database, configuration, topology, keys, and service file will be preserved."
+fi
 echo
 echo "=========================================================="
 echo
@@ -341,7 +404,7 @@ echo "=== Update Ubuntu ==="
 sudo apt update
 
 RUN_SYSTEM_UPGRADE=""
-read -r -p "Run a full system upgrade before installing Cardano? [y/N]: " RUN_SYSTEM_UPGRADE || true
+read -r -p "Run a full system upgrade before continuing? [y/N]: " RUN_SYSTEM_UPGRADE || true
 
 case "${RUN_SYSTEM_UPGRADE}" in
     [yY]|[yY][eE][sS])
@@ -510,8 +573,22 @@ echo "Cardano CI:   ${CARDANO_CI_CONFIG_URL}"
 echo "Release:      ${CABAL_RELEASE_URL}"
 echo
 
+if [[ "${OPERATION}" == "update" && "${INSTALLED_NODE_VERSION}" == "${NODE_VERSION}" ]]; then
+    REINSTALL_CURRENT_VERSION=""
+    read -r -p "Cardano Node ${NODE_VERSION} is already installed. Rebuild and reinstall it? [y/N]: " REINSTALL_CURRENT_VERSION || true
+
+    case "${REINSTALL_CURRENT_VERSION}" in
+        [yY]|[yY][eE][sS])
+            ;;
+        *)
+            echo "The node is already up to date. No changes were made."
+            exit 0
+            ;;
+    esac
+fi
+
 INSTALL_DETECTED_VERSIONS=""
-read -r -p "Install these detected versions? [Y/n]: " INSTALL_DETECTED_VERSIONS || true
+read -r -p "Use these detected versions? [Y/n]: " INSTALL_DETECTED_VERSIONS || true
 
 case "${INSTALL_DETECTED_VERSIONS}" in
     [nN]|[nN][oO])
@@ -856,6 +933,31 @@ echo "=== Install Cardano binaries ==="
 
 sudo mkdir -p "${LOCAL_BIN}"
 
+if [[ "${OPERATION}" == "update" ]]; then
+    BACKUP_DIR="${NODE_HOME}/backups/$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "${BACKUP_DIR}"
+    cp -p "${LOCAL_BIN}/cardano-node" "${BACKUP_DIR}/cardano-node"
+    cp -p "${LOCAL_BIN}/cardano-cli" "${BACKUP_DIR}/cardano-cli"
+
+    UPDATE_SERVICE_STOPPED="false"
+    restore_service_after_update_error() {
+        if [[ "${UPDATE_SERVICE_STOPPED}" == "true" ]]; then
+            echo
+            echo "Update failed after the service was stopped. Restoring the previous binaries."
+            sudo cp -p "${BACKUP_DIR}/cardano-node" "${LOCAL_BIN}/cardano-node" || true
+            sudo cp -p "${BACKUP_DIR}/cardano-cli" "${LOCAL_BIN}/cardano-cli" || true
+            echo "Attempting to start the existing service."
+            sudo systemctl start "${SERVICE_NAME}" || true
+        fi
+    }
+    trap restore_service_after_update_error ERR
+
+    echo "Backup of existing binaries: ${BACKUP_DIR}"
+    echo "=== Stop ${SERVICE_NAME} for binary replacement ==="
+    sudo systemctl stop "${SERVICE_NAME}"
+    UPDATE_SERVICE_STOPPED="true"
+fi
+
 sudo cp -p \
     "$(./scripts/bin-path.sh cardano-node)" \
     /usr/local/bin/cardano-node
@@ -867,6 +969,29 @@ sudo cp -p \
 sudo chmod +x \
     /usr/local/bin/cardano-node \
     /usr/local/bin/cardano-cli
+
+if [[ "${OPERATION}" == "update" ]]; then
+    echo
+    echo "=== Restart ${SERVICE_NAME} ==="
+    sudo systemctl restart "${SERVICE_NAME}"
+    UPDATE_SERVICE_STOPPED="false"
+    trap - ERR
+    sleep 5
+
+    echo
+    echo "=========================================================="
+    echo " CARDANO NODE UPDATE COMPLETE"
+    echo "=========================================================="
+    echo
+    "${LOCAL_BIN}/cardano-node" --version
+    echo
+    "${LOCAL_BIN}/cardano-cli" --version
+    echo
+    echo "Binary backup: ${BACKUP_DIR}"
+    echo
+    sudo systemctl --no-pager --full status "${SERVICE_NAME}" || true
+    exit 0
+fi
 
 
 # ==========================================================
