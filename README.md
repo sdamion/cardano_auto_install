@@ -24,11 +24,14 @@ for operations that need administrative access.
 ## Update an existing node
 
 Download and run the latest installer with the same commands shown above, then
-choose `update` at the first prompt. Start the script from the same parent
-directory used for the installation and enter the existing Cardano folder
-name. The updater detects the latest official Cardano Node, GHC, and Cabal
-versions, builds them, backs up the current `cardano-node` and `cardano-cli`
-binaries, briefly stops the service, installs the new binaries, and restarts
+choose `update` at the first prompt. Update mode first inspects the existing
+`cardano-node` systemd service and the commands available in `PATH`. It detects
+and displays the node home, database, socket, configuration, topology, start
+script, binaries, source repository, GHCup home, and Cabal home before making
+changes, so no Cardano folder-name prompt is needed. The updater then detects
+the latest official Cardano Node, GHC, and Cabal versions, builds them, backs
+up the current `cardano-node` and `cardano-cli` binaries, briefly stops the
+service, installs the new binaries in their detected locations, and restarts
 the service.
 
 Update mode preserves the existing database, configuration, topology, keys,

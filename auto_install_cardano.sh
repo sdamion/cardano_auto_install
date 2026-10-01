@@ -156,17 +156,19 @@ if [[ "${OPERATION}" == "install" ]]; then
     done
 fi
 
-while true; do
-    CARDANO_FOLDER_NAME_INPUT=""
-    read -r -p "Cardano folder name [${DEFAULT_CARDANO_FOLDER_NAME}]: " CARDANO_FOLDER_NAME_INPUT || true
-    CARDANO_FOLDER_NAME="${CARDANO_FOLDER_NAME_INPUT:-${DEFAULT_CARDANO_FOLDER_NAME}}"
+if [[ "${OPERATION}" == "install" ]]; then
+    while true; do
+        CARDANO_FOLDER_NAME_INPUT=""
+        read -r -p "Cardano folder name [${DEFAULT_CARDANO_FOLDER_NAME}]: " CARDANO_FOLDER_NAME_INPUT || true
+        CARDANO_FOLDER_NAME="${CARDANO_FOLDER_NAME_INPUT:-${DEFAULT_CARDANO_FOLDER_NAME}}"
 
-    if [[ "${CARDANO_FOLDER_NAME}" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$ ]]; then
-        break
-    fi
+        if [[ "${CARDANO_FOLDER_NAME}" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$ ]]; then
+            break
+        fi
 
-    echo "Enter a folder name of 1-64 letters, numbers, dots, underscores, or hyphens."
-done
+        echo "Enter a folder name of 1-64 letters, numbers, dots, underscores, or hyphens."
+    done
+fi
 
 if [[ "${OPERATION}" == "install" ]]; then
 is_valid_ipv4() {
@@ -284,28 +286,97 @@ fi
 # AUTOMATIC PATHS
 # ==========================================================
 
-NODE_HOME="${INSTALL_BASE_DIR}/${CARDANO_FOLDER_NAME}"
-GIT_HOME="${NODE_HOME}/git"
-TOOLS_HOME="${NODE_HOME}/tools"
+if [[ "${OPERATION}" == "install" ]]; then
+    NODE_HOME="${INSTALL_BASE_DIR}/${CARDANO_FOLDER_NAME}"
+    GIT_HOME="${NODE_HOME}/git"
+    TOOLS_HOME="${NODE_HOME}/tools"
+    NODE_DB="${NODE_HOME}/db"
+    NODE_CONFIG_DIR="${NODE_HOME}/config"
+    NODE_KEYS="${NODE_HOME}/keys"
+    NODE_SCRIPTS="${NODE_HOME}/scripts"
+    NODE_LOGS="${NODE_HOME}/logs"
+    NODE_SOCKET="${NODE_DB}/node.socket"
+    CARDANO_NODE_REPO="${GIT_HOME}/cardano-node"
+    BLST_DIR="${GIT_HOME}/blst"
+    LIBSODIUM_DIR="${GIT_HOME}/libsodium"
+    CARDANO_NODE_BIN="/usr/local/bin/cardano-node"
+    CARDANO_CLI_BIN="/usr/local/bin/cardano-cli"
+    LOCAL_BIN="/usr/local/bin"
+    GHCUP_INSTALL_BASE_PREFIX="${TOOLS_HOME}"
+    GHCUP_HOME="${GHCUP_INSTALL_BASE_PREFIX}/.ghcup"
+    CABAL_HOME="${TOOLS_HOME}/.cabal"
+else
+    echo
+    echo "=== Detect existing Cardano installation ==="
 
-NODE_DB="${NODE_HOME}/db"
-NODE_CONFIG_DIR="${NODE_HOME}/config"
-NODE_KEYS="${NODE_HOME}/keys"
-NODE_SCRIPTS="${NODE_HOME}/scripts"
-NODE_LOGS="${NODE_HOME}/logs"
+    if ! systemctl cat "${SERVICE_NAME}" >/dev/null 2>&1; then
+        echo "ERROR: Existing systemd service not found: ${SERVICE_NAME}"
+        exit 1
+    fi
 
-NODE_SOCKET="${NODE_DB}/node.socket"
+    SERVICE_FILE="$(systemctl show "${SERVICE_NAME}" --property=FragmentPath --value)"
+    NODE_HOME="$(systemctl show "${SERVICE_NAME}" --property=WorkingDirectory --value)"
+    START_SCRIPT="$(sed -n 's/^[[:space:]]*ExecStart=[-]*\([^[:space:]]*\).*/\1/p' "${SERVICE_FILE}" | head -n 1)"
 
-CARDANO_NODE_REPO="${GIT_HOME}/cardano-node"
+    if [[ -z "${NODE_HOME}" || ! -d "${NODE_HOME}" ]]; then
+        echo "ERROR: Could not detect a valid node home from ${SERVICE_FILE}."
+        exit 1
+    fi
+    if [[ -z "${START_SCRIPT}" || ! -f "${START_SCRIPT}" ]]; then
+        echo "ERROR: Could not detect the Cardano start script from ${SERVICE_FILE}."
+        exit 1
+    fi
 
-BLST_DIR="${GIT_HOME}/blst"
-LIBSODIUM_DIR="${GIT_HOME}/libsodium"
+    NODE_DB="$(sed -n 's/^[[:space:]]*--database-path[[:space:]]*"\([^"]*\)".*/\1/p' "${START_SCRIPT}" | head -n 1)"
+    NODE_SOCKET="$(sed -n 's/^[[:space:]]*--socket-path[[:space:]]*"\([^"]*\)".*/\1/p' "${START_SCRIPT}" | head -n 1)"
+    NODE_CONFIG_FILE="$(sed -n 's/^[[:space:]]*--config[[:space:]]*"\([^"]*\)".*/\1/p' "${START_SCRIPT}" | head -n 1)"
+    NODE_TOPOLOGY_FILE="$(sed -n 's/^[[:space:]]*--topology[[:space:]]*"\([^"]*\)".*/\1/p' "${START_SCRIPT}" | head -n 1)"
+    NODE_CONFIG_DIR="$(dirname "${NODE_CONFIG_FILE:-${NODE_HOME}/config/config.json}")"
+    NODE_KEYS="${NODE_HOME}/keys"
+    NODE_SCRIPTS="$(dirname "${START_SCRIPT}")"
+    NODE_LOGS="${NODE_HOME}/logs"
 
-LOCAL_BIN="/usr/local/bin"
+    CARDANO_NODE_BIN="$(command -v cardano-node || true)"
+    CARDANO_CLI_BIN="$(command -v cardano-cli || true)"
+    [[ -n "${CARDANO_NODE_BIN}" ]] && CARDANO_NODE_BIN="$(readlink -f "${CARDANO_NODE_BIN}")"
+    [[ -n "${CARDANO_CLI_BIN}" ]] && CARDANO_CLI_BIN="$(readlink -f "${CARDANO_CLI_BIN}")"
+    LOCAL_BIN="$(dirname "${CARDANO_NODE_BIN:-/usr/local/bin/cardano-node}")"
 
-GHCUP_INSTALL_BASE_PREFIX="${TOOLS_HOME}"
-GHCUP_HOME="${GHCUP_INSTALL_BASE_PREFIX}/.ghcup"
-CABAL_HOME="${TOOLS_HOME}/.cabal"
+    CARDANO_NODE_REPO=""
+    for REPO_CANDIDATE in "${NODE_HOME}/git/cardano-node" "${NODE_HOME}/cardano-node" "${USER_HOME}/git/cardano-node"; do
+        if [[ -d "${REPO_CANDIDATE}/.git" ]]; then
+            CARDANO_NODE_REPO="${REPO_CANDIDATE}"
+            break
+        fi
+    done
+    GIT_HOME="$(dirname "${CARDANO_NODE_REPO:-${NODE_HOME}/git/cardano-node}")"
+
+    if [[ -x "${NODE_HOME}/tools/.ghcup/bin/ghcup" ]]; then
+        TOOLS_HOME="${NODE_HOME}/tools"
+        GHCUP_HOME="${TOOLS_HOME}/.ghcup"
+    elif [[ -x "${NODE_HOME}/.ghcup/bin/ghcup" ]]; then
+        TOOLS_HOME="${NODE_HOME}"
+        GHCUP_HOME="${NODE_HOME}/.ghcup"
+    elif [[ -x "${USER_HOME}/.ghcup/bin/ghcup" ]]; then
+        TOOLS_HOME="${USER_HOME}"
+        GHCUP_HOME="${USER_HOME}/.ghcup"
+    else
+        TOOLS_HOME="${NODE_HOME}/tools"
+        GHCUP_HOME="${TOOLS_HOME}/.ghcup"
+    fi
+    BLST_DIR="${GIT_HOME}/blst"
+    LIBSODIUM_DIR="${GIT_HOME}/libsodium"
+    GHCUP_INSTALL_BASE_PREFIX="${TOOLS_HOME}"
+    if [[ -d "${NODE_HOME}/tools/.cabal" ]]; then
+        CABAL_HOME="${NODE_HOME}/tools/.cabal"
+    elif [[ -d "${NODE_HOME}/.cabal" ]]; then
+        CABAL_HOME="${NODE_HOME}/.cabal"
+    elif [[ -d "${USER_HOME}/.cabal" ]]; then
+        CABAL_HOME="${USER_HOME}/.cabal"
+    else
+        CABAL_HOME="${TOOLS_HOME}/.cabal"
+    fi
+fi
 
 export GHCUP_INSTALL_BASE_PREFIX
 export CABAL_DIR="${CABAL_HOME}"
@@ -314,29 +385,17 @@ CARDANO_CONFIG_BASE_URL="https://book.world.dev.cardano.org/environments/${NETWO
 
 INSTALLED_NODE_VERSION=""
 if [[ "${OPERATION}" == "update" ]]; then
-    if [[ ! -d "${NODE_HOME}" ]]; then
-        echo "ERROR: Existing Cardano folder not found: ${NODE_HOME}"
-        echo "Run the updater from the same parent directory and enter the existing folder name."
-        exit 1
-    fi
-
-    if [[ ! -d "${CARDANO_NODE_REPO}/.git" ]]; then
-        echo "ERROR: Cardano source repository not found: ${CARDANO_NODE_REPO}"
+    if [[ -z "${CARDANO_NODE_REPO}" || ! -d "${CARDANO_NODE_REPO}/.git" ]]; then
+        echo "ERROR: Cardano source repository was not found in a supported location."
         echo "This installation cannot be updated safely with this script."
         exit 1
     fi
 
-    if [[ ! -x "${LOCAL_BIN}/cardano-node" || ! -x "${LOCAL_BIN}/cardano-cli" ]]; then
-        echo "ERROR: Existing Cardano binaries were not found in ${LOCAL_BIN}."
+    if [[ ! -x "${CARDANO_NODE_BIN}" || ! -x "${CARDANO_CLI_BIN}" ]]; then
+        echo "ERROR: Existing cardano-node and cardano-cli binaries were not found in PATH."
         exit 1
     fi
-
-    if ! systemctl cat "${SERVICE_NAME}" >/dev/null 2>&1; then
-        echo "ERROR: Existing systemd service not found: ${SERVICE_NAME}"
-        exit 1
-    fi
-
-    INSTALLED_NODE_VERSION="$("${LOCAL_BIN}/cardano-node" --version | awk 'NR == 1 {print $2}')"
+    INSTALLED_NODE_VERSION="$("${CARDANO_NODE_BIN}" --version | awk 'NR == 1 {print $2}')"
 fi
 
 
@@ -377,6 +436,14 @@ if [[ "${OPERATION}" == "install" ]]; then
     done
 else
     echo "Installed version:     ${INSTALLED_NODE_VERSION}"
+    echo "Systemd service:       ${SERVICE_FILE}"
+    echo "Start script:          ${START_SCRIPT}"
+    echo "cardano-node binary:   ${CARDANO_NODE_BIN}"
+    echo "cardano-cli binary:    ${CARDANO_CLI_BIN}"
+    echo "Source repository:     ${CARDANO_NODE_REPO}"
+    echo "GHCup home:            ${GHCUP_HOME}"
+    echo "Cabal home:            ${CABAL_HOME}"
+    echo "Topology:              ${NODE_TOPOLOGY_FILE}"
     echo
     echo "The database, configuration, topology, keys, and service file will be preserved."
 fi
@@ -718,6 +785,7 @@ export CARDANO_NODE_SOCKET_PATH="${NODE_SOCKET}"
 echo
 echo "=== Configure .bashrc ==="
 
+if [[ "${OPERATION}" == "install" ]]; then
 BASHRC_START="# >>> Cardano node environment >>>"
 BASHRC_END="# <<< Cardano node environment <<<"
 
@@ -752,6 +820,10 @@ else
 
     echo "WARNING: ${USER_HOME} is not writable; skipping .bashrc configuration."
 
+fi
+
+else
+    echo "Existing .bashrc Cardano environment preserved."
 fi
 
 
@@ -931,21 +1003,21 @@ cabal build \
 echo
 echo "=== Install Cardano binaries ==="
 
-sudo mkdir -p "${LOCAL_BIN}"
+sudo mkdir -p "$(dirname "${CARDANO_NODE_BIN}")" "$(dirname "${CARDANO_CLI_BIN}")"
 
 if [[ "${OPERATION}" == "update" ]]; then
     BACKUP_DIR="${NODE_HOME}/backups/$(date +%Y%m%d-%H%M%S)"
     mkdir -p "${BACKUP_DIR}"
-    cp -p "${LOCAL_BIN}/cardano-node" "${BACKUP_DIR}/cardano-node"
-    cp -p "${LOCAL_BIN}/cardano-cli" "${BACKUP_DIR}/cardano-cli"
+    cp -p "${CARDANO_NODE_BIN}" "${BACKUP_DIR}/cardano-node"
+    cp -p "${CARDANO_CLI_BIN}" "${BACKUP_DIR}/cardano-cli"
 
     UPDATE_SERVICE_STOPPED="false"
     restore_service_after_update_error() {
         if [[ "${UPDATE_SERVICE_STOPPED}" == "true" ]]; then
             echo
             echo "Update failed after the service was stopped. Restoring the previous binaries."
-            sudo cp -p "${BACKUP_DIR}/cardano-node" "${LOCAL_BIN}/cardano-node" || true
-            sudo cp -p "${BACKUP_DIR}/cardano-cli" "${LOCAL_BIN}/cardano-cli" || true
+            sudo cp -p "${BACKUP_DIR}/cardano-node" "${CARDANO_NODE_BIN}" || true
+            sudo cp -p "${BACKUP_DIR}/cardano-cli" "${CARDANO_CLI_BIN}" || true
             echo "Attempting to start the existing service."
             sudo systemctl start "${SERVICE_NAME}" || true
         fi
@@ -960,15 +1032,15 @@ fi
 
 sudo cp -p \
     "$(./scripts/bin-path.sh cardano-node)" \
-    /usr/local/bin/cardano-node
+    "${CARDANO_NODE_BIN}"
 
 sudo cp -p \
     "$(./scripts/bin-path.sh cardano-cli)" \
-    /usr/local/bin/cardano-cli
+    "${CARDANO_CLI_BIN}"
 
 sudo chmod +x \
-    /usr/local/bin/cardano-node \
-    /usr/local/bin/cardano-cli
+    "${CARDANO_NODE_BIN}" \
+    "${CARDANO_CLI_BIN}"
 
 if [[ "${OPERATION}" == "update" ]]; then
     echo
@@ -983,9 +1055,9 @@ if [[ "${OPERATION}" == "update" ]]; then
     echo " CARDANO NODE UPDATE COMPLETE"
     echo "=========================================================="
     echo
-    "${LOCAL_BIN}/cardano-node" --version
+    "${CARDANO_NODE_BIN}" --version
     echo
-    "${LOCAL_BIN}/cardano-cli" --version
+    "${CARDANO_CLI_BIN}" --version
     echo
     echo "Binary backup: ${BACKUP_DIR}"
     echo
