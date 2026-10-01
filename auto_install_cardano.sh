@@ -345,11 +345,21 @@ else
         exit 1
     fi
 
-    NODE_DB="$(sed -n 's/^[[:space:]]*--database-path[[:space:]]*"\([^"]*\)".*/\1/p' "${START_SCRIPT}" | head -n 1)"
-    NODE_SOCKET="$(sed -n 's/^[[:space:]]*--socket-path[[:space:]]*"\([^"]*\)".*/\1/p' "${START_SCRIPT}" | head -n 1)"
-    NODE_CONFIG_FILE="$(sed -n 's/^[[:space:]]*--config[[:space:]]*"\([^"]*\)".*/\1/p' "${START_SCRIPT}" | head -n 1)"
-    NODE_TOPOLOGY_FILE="$(sed -n 's/^[[:space:]]*--topology[[:space:]]*"\([^"]*\)".*/\1/p' "${START_SCRIPT}" | head -n 1)"
-    NODE_CONFIG_DIR="$(dirname "${NODE_CONFIG_FILE:-${NODE_HOME}/config/config.json}")"
+    NODE_DB="$(sed -n 's/^[[:space:]]*--database-path[[:space:]]*"\{0,1\}\([^"[:space:]\\]*\).*/\1/p' "${START_SCRIPT}" | head -n 1)"
+    NODE_SOCKET="$(sed -n 's/^[[:space:]]*--socket-path[[:space:]]*"\{0,1\}\([^"[:space:]\\]*\).*/\1/p' "${START_SCRIPT}" | head -n 1)"
+    NODE_CONFIG_FILE="$(sed -n 's/^[[:space:]]*--config[[:space:]]*"\{0,1\}\([^"[:space:]\\]*\).*/\1/p' "${START_SCRIPT}" | head -n 1)"
+    NODE_TOPOLOGY_FILE="$(sed -n 's/^[[:space:]]*--topology[[:space:]]*"\{0,1\}\([^"[:space:]\\]*\).*/\1/p' "${START_SCRIPT}" | head -n 1)"
+
+    if [[ "${NODE_DB}" == \$* ]]; then NODE_DB=""; fi
+    if [[ "${NODE_SOCKET}" == \$* ]]; then NODE_SOCKET=""; fi
+    if [[ "${NODE_CONFIG_FILE}" == \$* ]]; then NODE_CONFIG_FILE=""; fi
+    if [[ "${NODE_TOPOLOGY_FILE}" == \$* ]]; then NODE_TOPOLOGY_FILE=""; fi
+
+    NODE_DB="${NODE_DB:-${NODE_HOME}/db}"
+    NODE_SOCKET="${NODE_SOCKET:-${NODE_DB}/node.socket}"
+    NODE_CONFIG_FILE="${NODE_CONFIG_FILE:-${NODE_HOME}/config/config.json}"
+    NODE_TOPOLOGY_FILE="${NODE_TOPOLOGY_FILE:-${NODE_HOME}/config/topology.json}"
+    NODE_CONFIG_DIR="$(dirname "${NODE_CONFIG_FILE}")"
     NODE_KEYS="${NODE_HOME}/keys"
     NODE_SCRIPTS="$(dirname "${START_SCRIPT}")"
     NODE_LOGS="${NODE_HOME}/logs"
@@ -700,14 +710,19 @@ sudo systemctl enable --now chrony
 echo
 echo "=== Create directories ==="
 
-mkdir -p \
-    "${GIT_HOME}" \
-    "${TOOLS_HOME}" \
-    "${NODE_DB}" \
-    "${NODE_CONFIG_DIR}" \
-    "${NODE_KEYS}" \
-    "${NODE_SCRIPTS}" \
-    "${NODE_LOGS}"
+if [[ "${OPERATION}" == "install" ]]; then
+    mkdir -p \
+        "${GIT_HOME}" \
+        "${TOOLS_HOME}" \
+        "${NODE_DB}" \
+        "${NODE_CONFIG_DIR}" \
+        "${NODE_KEYS}" \
+        "${NODE_SCRIPTS}" \
+        "${NODE_LOGS}"
+else
+    mkdir -p "${GIT_HOME}" "${TOOLS_HOME}"
+    echo "Existing database, configuration, keys, scripts, and log directories preserved."
+fi
 
 
 # ==========================================================
